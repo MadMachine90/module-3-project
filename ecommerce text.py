@@ -39,14 +39,14 @@ class Order(Base):
     order_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("user.id"))
     users: Mapped[List["User"]] = relationship(secondary=user_order, back_populates="orders")
-    order_products: Mapped[List["Product"]] = relationship(secondary=order_product, back_populates="order_products")
+    order_products: Mapped[List["Product"]] = relationship(secondary=order_product, back_populates="product_orders")
 
 class Product(Base):
     __tablename__ = "product"
     id: Mapped[int] = mapped_column(primary_key=True)
     product_name: Mapped[str] = mapped_column(String(200))
     price: Mapped[Float] = mapped_column(Float, nullable=False)
-    orders : Mapped[List["Order"]] = relationship(secondary=order_product, back_populates="products")
+    product_orders : Mapped[List["Order"]] = relationship(secondary=order_product, back_populates="order_products")
 
 class User(Base):
     __tablename__ = "user"
@@ -231,7 +231,9 @@ def create_product_to_order(order_id, product_id):
     order = db.session.get(Order, order_id)
     product = db.session.get(Product, product_id)
 
-    order.products.append(product)
+    if product in order.order_products:
+        return jsonify({"message": f"Product.id{product_id} already exists"}), 400
+    order.order_products.append(product)
     db.session.commit()
     return jsonify({"message": f"Product.id{product_id} has been added to order.id {order_id}!"}), 200
 
@@ -250,9 +252,27 @@ def remove_product_from_order(order_id, product_id):
     if product not in order.order_products:
         return jsonify({"message": "Product not in order"}), 400
 
-    order.products.remove(product)
+    order.order_products.remove(product)
     db.session.commit()
     return jsonify({"message": f"Product{product_id} has successfully been removed from order {order_id}!"}), 200
+
+#Read an order for a user
+
+@app.route('/orders/<int:order_id>/user/<int:user_id>', methods=['GET'])
+def get_orders(order_id, user_id):
+    query = select(Order, order_id, User, user_id)
+    orders = db.session.execute(query).scalars().all()
+
+    return orders_schema.jsonify(orders), 200
+
+#Read products for an order
+
+@app.route('/orders/<int:order_id>/products', methods=['GET'])
+def get_products_from_orders(order_id):
+    query = select(Order, id, order_id)
+    order = db.session.execute(query).scalars().all()
+
+    return products_schema.jsonify(order.order_products), 200
 
 
 if __name__ == "__main__":
