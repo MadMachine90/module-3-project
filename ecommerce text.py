@@ -269,8 +269,7 @@ def get_orders(order_id, user_id):
 
 @app.route('/orders/<int:order_id>/products', methods=['GET'])
 def get_products_from_orders(order_id):
-    query = select(Order, id, order_id)
-    order = db.session.execute(query).scalars().all()
+    order = db.session.get(Order, order_id)
 
     return products_schema.jsonify(order.order_products), 200
 
